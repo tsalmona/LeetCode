@@ -4,9 +4,10 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <stdio.h>
 
-#define TABLE_SIZE 1024
-#define BUCKET_BLOCK_SIZE 128
+#define TABLE_SIZE 512
+#define BUCKET_BLOCK_SIZE 512
 
 /* 
  * On va créer une hashtable un peu particulière. Elle contient un champ refList qui contient la liste
@@ -16,6 +17,17 @@
  * t->table[p % TABLE_SIZE].
  */
 
+int mod(int a, int b){
+    if(b < 0){
+        return -1;
+    } 
+    if(a < 0){
+        int v = (-1 * a) % b;
+        return b - v;
+    }
+    return a % b;
+}
+
 struct DynList {
     int *list;
     size_t len;
@@ -23,7 +35,7 @@ struct DynList {
 
 struct HashTable {
     int *refList;
-    struct DynList *table;
+    struct DynList **table;
 };
 
 struct HashTable *create(int *refList){
@@ -31,7 +43,7 @@ struct HashTable *create(int *refList){
     assert(res != NULL);
 
     res->refList = refList;
-    res->table = malloc(TABLE_SIZE * sizeof(struct DynList));
+    res->table = malloc(TABLE_SIZE * sizeof(struct DynList *));
     assert(res->table != NULL);
 
     for(size_t i = 0; i < TABLE_SIZE; i++){
@@ -39,6 +51,20 @@ struct HashTable *create(int *refList){
     }
 
     return res;
+}
+
+void print_hashtable(struct HashTable *t){
+    for(size_t i = 0; i < TABLE_SIZE; i++){
+        printf("%zu : ", i);
+        if(t->table[i] == NULL){
+            printf("null\n");
+        } else {
+            for(size_t j = 0; j < t->table[i]->len; j++){
+                printf("%d, ", t->table[i]->list[j]);
+            }
+            printf("\n");
+        }
+    }
 }
 
 void free_dynlist(struct DynList *l){
@@ -58,18 +84,8 @@ void free_hashtable(struct HashTable *t){
 
 /* Ajoute dynamiquement l'entier e (qui est en pratique un indice dans un tableau) au tableau t */
 void append(struct DynList *l, int e){
-    if(l == NULL){
-        l = malloc(sizeof(struct DynList));
-        assert(l != NULL);
-
-        l->len = 0;
-        l->list = malloc(BUCKET_BLOCK_SIZE * sizeof(int));
-        assert(l->list != NULL);
-
-        l->list[l->len] = -1;
-    }
-    if((l->len > 0) && ((l->len + 1) % BLOCK_BUCKET_SIZE < sizeof(int))){
-        int *tmp = realloc(l->list, sizeof(int) * (((l->len + 1) / BLOCK_BUCKET_SIZE) + 1) * BLOCK_BUCKET_SIZE;
+    if((l->len > 0) && ((l->len + 1) % BUCKET_BLOCK_SIZE < sizeof(int))){
+        int *tmp = realloc(l->list, sizeof(int) * (((l->len + 1) / BUCKET_BLOCK_SIZE) + 1) * BUCKET_BLOCK_SIZE);
         assert(tmp != NULL);
 
         l->list = tmp;
@@ -81,23 +97,36 @@ void append(struct DynList *l, int e){
 }
 
 /* Ajoute l'indice e à la table de hashage à la position t->table[t->refList[e] % TABLE_SIZE] */
-void appendIndex(struct HashTable *t, int e){
+void appendIndex(struct HashTable *t, int e) {
     int v = t->refList[e];
-    append(t->table[v % TABLE_SIZE], e);
+    size_t bucket_index = mod(v, TABLE_SIZE);
+
+    if (t->table[bucket_index] == NULL) {
+        t->table[bucket_index] = malloc(sizeof(struct DynList));
+        assert(t->table[bucket_index] != NULL);
+
+        t->table[bucket_index]->len = 0;
+        t->table[bucket_index]->list = malloc(BUCKET_BLOCK_SIZE * sizeof(int));
+        assert(t->table[bucket_index]->list != NULL);
+
+        t->table[bucket_index]->list[0] = -1;
+    }
+
+    append(t->table[bucket_index], e);
 }
 
 /* Renvoie l'indice si la table de hashage contient e en valeur,
  * c'est à dire que t->table[e % TABLE_SIZE] contient l'indice de e dans t->refList
  */
 int contains(struct HashTable *t, int e){
-    if(t == NULL || t->table[e % TABLE_SIZE] == NULL){
-        return 0;
+    if(t == NULL || t->table[mod(e, TABLE_SIZE)] == NULL){
+        return -1;
     }
     size_t i = 0;
-    int *l = t->table[e % TABLE_SIZE]->list;
-    while(l[i] != -1){
+    int *l = t->table[mod(e, TABLE_SIZE)]->list;
+    for(i = 0; i < t->table[mod(e, TABLE_SIZE)]->len; i++){
         if(e == t->refList[l[i]]){
-            return i;
+            return l[i];
         }
     }
     return -1;
@@ -117,10 +146,36 @@ int* twoSum(int* nums, int numsSize, int target, int* returnSize) {
             res[0] = i;
             res[1] = index;
 
+            free_hashtable(t);
+
             return res;
         }
         appendIndex(t, i);
     }
     *returnSize = 0;
+
+    free_hashtable(t);
     return NULL;
+}
+
+int main(){
+    int returnSize;
+
+    int t1[5] = {0, 4, 3, 0};
+    int *r1 = twoSum(t1, 4, 0, &returnSize);
+    printf("Test 1 : %d, %d\n", r1[0], r1[1]);
+    free(r1);
+
+    returnSize = 0;
+
+    int t2[1] = {1};
+    int *r2 = twoSum(t2, 1, 2, &returnSize);
+    if(r2 == NULL){
+        printf("Test 2 : ok\n");
+    } else {
+        printf("Test 2 : failed");
+        free(r2);
+    }
+
+    return 0;
 }
