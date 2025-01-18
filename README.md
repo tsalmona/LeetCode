@@ -1,1 +1,1 @@
-# LeetCodeGrinding
+# LeetCode
