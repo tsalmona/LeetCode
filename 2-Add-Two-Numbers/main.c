@@ -7,7 +7,14 @@
  */
 
 #include <assert.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <stdio.h>
 
+typedef struct ListNode {
+    int val;
+    struct ListNode *next;
+} ListNode;
 
 struct ListNode *addTwoNumbersRec(struct ListNode *l1, struct ListNode *l2, int ret){
     if(l1 == NULL && l2 == NULL){
